@@ -28,17 +28,76 @@ __revision__ = "$Format:%H$"
 
 import os
 import sys
+import shutil
+from pathlib import Path
 
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QObject, pyqtSlot
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QMenu, QToolButton
 
+#sys.path.append('C:\\Users\\giohappy\\.vscode\\extensions\\ms-python.debugpy-2024.10.0-win32-x64\\bundled\\libs')
+
+sys.path.append(str(Path(os.path.realpath(__file__)).parent.absolute()))
 
 def classFactory(iface):
     return DebugVSPlugin(iface)
 
 
+class DebugVSPlugin(QObject):
+    def __init__(self, iface):
+        super().__init__()
+        
+        self.iface = iface
+        self.debugpy = None
+        try:
+            import debugpy
+            self.debugpy = debugpy
+            debugpy.configure(python=shutil.which("python"))
+        except:
+            pass
+        
+        self.host = "localhost"
+        self.port = 5678
+        
+        self.msgBar = iface.messageBar()
+        self.pluginName = "DebugVS"
+        self.nameActionEnable = "Enable Debug for Visual Studio"
+        
+        self.toolButton = QToolButton()
+        self.toolButton.setMenu(QMenu())
+        self.toolButton.setPopupMode(QToolButton.MenuButtonPopup)
+        self.toolBtnAction = self.iface.addToolBarWidget(self.toolButton)
+    
+    def initGui(self):
+        # Action Run
+        icon = QIcon(os.path.join(os.path.dirname(__file__), "code.svg"))
+        self.actionEnable = QAction(icon, self.nameActionEnable, self.iface.mainWindow())
+        self.actionEnable.setToolTip(self.nameActionEnable)
+        self.actionEnable.triggered.connect(self.enable)
+        self.iface.addPluginToMenu(f"&{self.nameActionEnable}", self.actionEnable)
+        
+    def unload(self):
+        self.iface.removePluginMenu(f"&{self.nameActionEnable}", self.actionEnable)
+        self.iface.removeToolBarIcon(self.actionEnable)
+        self.iface.unregisterMainWindowAction(self.actionEnable)
+
+        self.iface.removeToolBarIcon(self.toolBtnAction)
+        
+    @pyqtSlot(bool)
+    def enable(self, checked):
+        self.msgBar.popWidget()
+        if self.debugpy is None:
+            self.msgBar.pushCritical(self.pluginName, f"Need install debugpy: pip3 install debugpy (Not found in {sys.path})")
+            return
+        msgPort = f'"request": "attach", "Port": {self.port}, "host": "{self.host}"'
+        if self.debugpy.is_client_connected():
+            self.msgBar.pushWarning(self.pluginName, f"Remote Debug for Visual Studio is active({msgPort})")
+            return
+        t_, self.port = self.debugpy.listen((self.host, self.port))
+        msgPort = f'"request": "enable_attach", "Port": {self.port}, "host": "{self.host}"'
+        self.msgBar.pushInfo(self.pluginName, f"Remote Debug for Visual Studio is running({msgPort})")
+'''
 class DebugVSPlugin(QObject):
     def __init__(self, iface):
         super().__init__()
@@ -160,3 +219,4 @@ class DebugVSPlugin(QObject):
 
         self.debugpy.wait_for_client()
         exec(open(filename).read())
+'''

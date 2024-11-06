@@ -46,8 +46,8 @@ class DebugVSPlugin(QObject):
         self.debugpy = None
         try:
             import debugpy
-
             self.debugpy = debugpy
+            self.debugpy.configure(python = 'python3')
         except:
             pass
         self.port = 5678
